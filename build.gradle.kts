@@ -1,6 +1,6 @@
 plugins {
-    kotlin("multiplatform") version "1.5.31"
-    kotlin("plugin.serialization") version "1.5.31"
+    kotlin("multiplatform") version "1.6.10"
+    kotlin("plugin.serialization") version "1.6.10"
     id("com.github.johnrengelman.shadow") version "7.0.0"
     application
 }
@@ -61,11 +61,16 @@ kotlin {
         val jvmTest by getting
         val jsMain by getting {
             dependencies {
-                implementation("org.jetbrains.kotlin-wrappers:kotlin-react:17.0.2-pre.206-kotlin-1.5.10")
-                implementation("org.jetbrains.kotlin-wrappers:kotlin-react-dom:17.0.2-pre.206-kotlin-1.5.10")
+                implementation("org.jetbrains.kotlin-wrappers:kotlin-react:17.0.2-pre.323-kotlin-1.6.10")
+                implementation("org.jetbrains.kotlin-wrappers:kotlin-react-dom:17.0.2-pre.323-kotlin-1.6.10")
+                implementation("org.jetbrains.kotlin-wrappers:kotlin-mui:5.5.3-pre.325-kotlin-1.6.10")
+                implementation("org.jetbrains.kotlin-wrappers:kotlin-mui-icons:5.5.1-pre.325-kotlin-1.6.10")
+                implementation("org.jetbrains.kotlin-wrappers:kotlin-emotion:11.8.2-pre.325-kotlin-1.6.10")
+
                 implementation("io.ktor:ktor-client-js:$ktorVersion")
                 implementation("io.ktor:ktor-client-json-js:$ktorVersion")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-js:1.5.2")
+                implementation("org.jetbrains.kotlinx:kotlinx-html-js:0.7.2")
             }
         }
         val jsTest by getting

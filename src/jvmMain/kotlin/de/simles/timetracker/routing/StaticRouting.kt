@@ -8,31 +8,29 @@ import kotlinx.html.*
 fun HTML.index() {
     head {
         title("Timetracker")
-        script {
-            src = "https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
-            integrity = "sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"
-            attributes.put("crossorigin", "anonymous")
-        }
-        link {
-            href = "https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
-            rel = "stylesheet"
-            integrity = "sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC"
-            attributes.put("crossorigin", "anonymous")
-        }
         script(src = "/static/Timetracker.js") {}
         link {
             rel = "icon"
             href = "/static/favicon.ico"
         }
     }
-    body(classes = "d-flex flex-column min-vh-100") {
+    body {
         div {
             id = "root"
         }
-        footer(classes = "footer mt-auto py-3 bg-light text-center") {
-            div(classes = "container") {
-                span(classes = "text-muted") {
-                    +"© Simon Lessenich, 2021"
+        footer {
+            style = "position: fixed;" +
+                    "left: 0;" +
+                    "bottom: 0;" +
+                    "height: 50px;" +
+                    "width: 100%;" +
+                    "background-color: #F0EDED;" +
+                    "color: rgb(25, 118, 210);" +
+                    "text-align: center;" +
+                    "vertical-align: middle"
+            div {
+                h3 {
+                    +"© Simon Lessenich, 2022"
                 }
             }
         }

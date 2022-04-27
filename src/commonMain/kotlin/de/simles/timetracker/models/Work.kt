@@ -24,12 +24,24 @@ data class Time(val hour: Int, val minute: Int) {
     )
 
     fun asDouble(): Double = hour + minute / 60.0
+
+    companion object {
+        fun now(): Time = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).let {
+            Time(it.hour, it.minute)
+        }
+    }
 }
 
-fun String.toTime(): Time {
+fun String.toTime(): Time? {
     val regex = Regex("""^(\d{1,2})?:(\d{1,2})?$""")
     return regex.matchEntire(this).let {
-        Time(it?.groups?.get(1)?.value?.toInt() ?: 0, it?.groups?.get(2)?.value?.toInt() ?: 0)
+        val hour = it?.groups?.get(1)?.value?.toInt()
+        val minute = it?.groups?.get(2)?.value?.toInt()
+        if (hour != null && minute != null) {
+            Time(hour, minute)
+        } else {
+            null
+        }
     }
 }
 
@@ -50,8 +62,7 @@ class IntervalUnit(
     var pause: Time?
 ) : TimeUnit() {
     override fun getTotalDuration(): Time {
-        val endOrNow = end ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-            .let { n -> Time(n.hour, n.minute) }
+        val endOrNow = end ?: Time.now()
         val pauseOrZero = pause ?: Time(0, 0)
         return endOrNow - start - pauseOrZero
     }
@@ -59,8 +70,8 @@ class IntervalUnit(
     override fun withDate(newDate: LocalDate): TimeUnit = IntervalUnit(newDate, this.start, this.end, this.pause)
 
     fun withStart(newStart: Time) = IntervalUnit(date, newStart, end, pause)
-    fun withEnd(newEnd: Time) = IntervalUnit(date, start, newEnd, pause)
-    fun withPause(newPause: Time) = IntervalUnit(date, start, end, newPause)
+    fun withEnd(newEnd: Time?) = IntervalUnit(date, start, newEnd, pause)
+    fun withPause(newPause: Time?) = IntervalUnit(date, start, end, newPause)
 }
 
 @Serializable

@@ -1,72 +1,80 @@
 package components
 
 import JsApi
+import csstype.AlignItems
+import csstype.JustifyContent
+import csstype.TextAlign
+import csstype.px
 import de.simles.timetracker.models.Time
 import de.simles.timetracker.models.Work
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import mui.material.*
+import mui.system.sx
 import react.*
-import react.dom.b
-import react.dom.div
-import react.dom.hr
+import react.dom.html.ReactHTML.b
+import react.dom.html.ReactHTML.hr
+import react.dom.html.ReactHTML.span
 import scope
 
-external interface TimeSum : RProps {
-    var work: List<Work>?
+external interface TimeSum : Props {
+    var workItemList: List<Work>
 }
 
-fun <T> Iterable<T>.sumOf(selector: (T) -> Time): Time {
-    var sum = Time(0, 0)
-    for (element in this) {
-        sum += selector(element)
-    }
-    return sum
-}
+fun <T> Iterable<T>.sumOf(selector: (T) -> Time): Time =
+    this.fold(Time(0, 0)) { acc, t -> acc + selector(t) }
+
+
+suspend fun getCategoryMap(): Map<String, List<String>> = JsApi.getProjects()
+    .groupBy { it.category }
+    .mapValues { it.value.map { it.name } }
 
 @ExperimentalCoroutinesApi
-val timeSum = functionalComponent<TimeSum> { props ->
-    val (categoryToProjectMap, setCategoryToProjectMap) = useState<Map<String, List<String>>?>(null)
-    if (categoryToProjectMap == null) {
+val timeSum = FC<TimeSum> { props ->
+    var categoryToProjectMap by useState<Map<String, List<String>>>(emptyMap())
+
+    useEffect(emptyList<String>()) {
         scope.launch {
-            val categoryMap =
-                JsApi.getProjects()
-                    .associate { it.name to it.category }
-                    .map { listOf(it.value, it.key) }
-                    .groupBy { it[0] }
-                    .map { it.key to it.value.flatten() }
-                    .toMap()
-            console.log("Project map is set")
-            setCategoryToProjectMap(categoryMap)
+            categoryToProjectMap = getCategoryMap()
         }
     }
-    categoryToProjectMap?.toList()?.map {
-        div(classes = "row") {
-            div(classes = "col") {
+
+    categoryToProjectMap.toList().map {
+        List {
+            dense = true
+            sx {
+                paddingTop = 5.px
+                justifyContent = JustifyContent.center
+                alignItems = AlignItems.center
+            }
+            ListItem {
                 val projectsForCategory = it.second
-                val sum = props.work?.filter { projectsForCategory.contains(it.project) }
-                    ?.sumOf { it.time.getTotalDuration() } ?: Time(0, 0)
-                b {
-                    +"${it.first}: "
+                val sum = props.workItemList.filter { projectsForCategory.contains(it.project) }
+                    .sumOf { it.time.getTotalDuration() }
+                ListItemText {
+                    b { +"${it.first}: " }
+                    +"$sum / ${sum.asDouble().asDynamic().toFixed(2)}"
                 }
-                +"$sum / ${sum.asDouble().asDynamic().toFixed(2)}"
             }
         }
     }
-    div(classes = "row justify-content-start") {
-        div(classes = "col") {
-            hr { }
-            b {
-                +"Total time: "
+    Box {
+        sx {
+            paddingTop = 20.px
+            justifyContent = JustifyContent.center
+            alignItems = AlignItems.center
+        }
+        Typography {
+            align = TypographyAlign.inherit
+            sx {
+                textAlign = TextAlign.center
             }
-            val totalDuration: Time = props.work?.sumOf { it.time.getTotalDuration() } ?: Time(0, 0)
-            +"${totalDuration} / ${totalDuration.asDouble().asDynamic().toFixed(2)}"
+            b { +"Total time: " }
+            val totalDuration: Time = props.workItemList.sumOf { it.time.getTotalDuration() }
+            +"${totalDuration}"
+            span { +" / " }
+            +"${totalDuration.asDouble().asDynamic().toFixed(2)}"
         }
     }
 }
 
-fun RBuilder.timeSum(handler: TimeSum.() -> Unit): ReactElement {
-    return child(timeSum) {
-        this.attrs(handler)
-    }
-}

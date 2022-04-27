@@ -1,74 +1,56 @@
 package components
 
-import kotlinx.html.ButtonType
-import kotlinx.html.classes
-import kotlinx.html.id
-import kotlinx.html.js.onChangeFunction
-import kotlinx.html.js.onClickFunction
-import org.w3c.dom.HTMLTextAreaElement
-import react.*
-import react.dom.*
+import mui.material.*
+import react.FC
+import react.Props
+import react.ReactNode
+import react.dom.html.InputType
+import react.dom.onChange
+import react.useState
 
-external interface TextEditProps : RProps {
-    var id: String
+external interface TextEditProps : Props {
+    var isOpen: Boolean
     var text: String
     var onSave: (String) -> Unit
+    var onClose: () -> Unit
 }
 
-val textEdit = functionalComponent<TextEditProps> { props ->
-    val (text, updateText) = useState(props.text)
-    div(classes = "modal") {
-        attrs {
-            id = props.id
+val textEdit = FC<TextEditProps> { props ->
+    var text by useState(props.text)
+    Dialog {
+        open = props.isOpen
+        onClose = { _, _ -> props.onClose() }
+        fullWidth = true
+        maxWidth = "sm"
+
+        DialogTitle {
+            +"Edit Text"
         }
-        div(classes = "modal-dialog") {
-            div(classes = "modal-content") {
-                div(classes = "modal-header") {
-                    h5(classes = "modal-title") {
-                        +"Edit text"
-                    }
-                    button(type = ButtonType.button, classes = "btn-close") {
-                        attrs {
-                            attributes.put("data-bs-dismiss", "modal")
-                        }
-                    }
-                }
-                div(classes = "modal-body") {
-                    textarea(classes = "form-control") {
-                        attrs {
-                            defaultValue = props.text
-                            onChangeFunction = { e ->
-                                updateText((e.target as HTMLTextAreaElement).value)
-                            }
-                        }
-                    }
-                }
-                div(classes = "modal-footer") {
-                    button {
-                        attrs {
-                            type = ButtonType.button
-                            classes = setOf("btn", "btn-secondary")
-                            attributes.put("data-bs-dismiss", "modal")
-                        }
-                        +"Close"
-                    }
-                    button {
-                        attrs {
-                            type = ButtonType.button
-                            classes = setOf("btn", "btn-primary")
-                            onClickFunction = { _ -> props.onSave(text) }
-                            attributes.put("data-bs-dismiss", "modal")
-                        }
-                        +"Save"
-                    }
-                }
+        DialogContent {
+            DialogContentText { +"Edit or add a comment" }
+            TextField {
+                autoFocus = true
+                margin = FormControlMargin.dense
+                label = ReactNode("Comment")
+                type = InputType.text
+                fullWidth = true
+                variant = FormControlVariant.standard
+                multiline = true
+                minRows = 4
+                value = text
+                onChange = { e -> text = e.target.asDynamic().value.toString() }
             }
         }
-    }
-}
+        DialogActions {
+            Button {
+                onClick = { props.onClose() }
+                +"Close"
+            }
+            Button {
+                onClick = { props.onSave(text) }
+                +"Save"
+            }
+        }
 
-fun RBuilder.textEdit(handler: TextEditProps.() -> Unit): ReactElement {
-    return child(textEdit) {
-        this.attrs(handler)
     }
 }

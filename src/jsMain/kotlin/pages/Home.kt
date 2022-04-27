@@ -5,59 +5,75 @@ import components.sumOf
 import components.textEdit
 import components.timeSum
 import components.weekPicker
+import csstype.*
 import de.simles.timetracker.YearWeek
 import de.simles.timetracker.display
 import de.simles.timetracker.lastWorkDayOfWeek
 import de.simles.timetracker.models.Comment
+import de.simles.timetracker.models.Time
 import de.simles.timetracker.models.Work
-import kotlinx.browser.document
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
-import kotlinx.html.js.onClickFunction
-import org.w3c.dom.Element
-import react.*
-import react.dom.*
+import kotlinx.datetime.LocalDate
+import kotlinx.js.jso
+import mui.material.*
+import mui.system.ResponsiveStyleValue
+import mui.system.sx
+import react.FC
+import react.Props
+import react.useEffect
+import react.useState
 import scope
 
-external interface HomeProps : RProps
-
-external interface HomeState : RState {
-    var yearWeek: YearWeek
-    var work: List<Work>
-    var comments: List<Comment>
+val timesTableHeader = FC<TimesTableHeaderFooterProps> { props ->
+    TableHead {
+        TableRow {
+            TableCell { +"Date" }
+            TableCell { +"Comment" }
+            TableCell { +"Total Time" }
+            props.projectList.map { TableCell { +it } }
+        }
+    }
 }
 
-class Home(props: HomeProps) : RComponent<HomeProps, HomeState>(props) {
-    init {
-        state.apply {
-            yearWeek = YearWeek.current()
-            work = emptyList()
-            comments = emptyList()
-        }
-        scope.launch {
-            updateWorkItems()
-            updateComments()
+external interface TimesTableHeaderFooterProps : Props {
+    var projectList: List<String>
+    var projectToTimeMap: Map<String, Time>
+}
+
+var timesTableFooter = FC<TimesTableHeaderFooterProps> { props ->
+    TableFooter {
+        TableRow {
+            TableCell { +"Total" }
+            TableCell { +"" }
+            TableCell {
+                val totalTime = props.projectToTimeMap.values.sumOf { it }
+                +"$totalTime / ${totalTime.asDouble().asDynamic().toFixed(2)}"
+            }
+            props.projectList.map {
+                TableCell { +props.projectToTimeMap.get(it).toString() }
+            }
         }
     }
+}
 
-    private suspend fun updateWorkItems() {
-        val year = state.yearWeek.year
-        val week = state.yearWeek.week
-        if (year != null && week != null) {
-            val receivedWork = JsApi.getWork(year, week)
-            setState {
-                work = receivedWork
-            }
-            console.log("Work is updated")
-        } else {
-            setState {
-                work = emptyList()
-            }
-            console.log("Work is reset")
-        }
+@OptIn(ExperimentalCoroutinesApi::class)
+val Home = FC<Props> {
+    var yearWeek by useState(YearWeek.current())
+    var workList by useState<List<Work>>(emptyList())
+    var comments by useState<List<Comment>>(emptyList())
+
+
+    suspend fun updateWorkItems(yearWeekToOverride: YearWeek? = null) {
+        val year = yearWeekToOverride?.year ?: yearWeek.year
+        val week = yearWeekToOverride?.week ?: yearWeek.week
+        val receivedWork = JsApi.getWork(year!!, week!!)
+        workList = receivedWork
+        console.log("Work is updated")
     }
 
-    private suspend fun updateComments() {
-        val mondayOfWeek = state.yearWeek.mondayInWeek()
+    suspend fun updateComments(yearWeekToOverride: YearWeek? = null) {
+        val mondayOfWeek = (yearWeekToOverride ?: yearWeek).mondayInWeek()
         if (mondayOfWeek != null) {
             val retrievedComments =
                 listOf(mondayOfWeek, mondayOfWeek.lastWorkDayOfWeek()).map {
@@ -65,15 +81,22 @@ class Home(props: HomeProps) : RComponent<HomeProps, HomeState>(props) {
                 }.distinct().foldRight(emptyList()) { pair: Pair<Int, Int>, list: List<Comment> ->
                     list + JsApi.getComments(pair.first, pair.second)
                 }
-            setState { comments = retrievedComments }
+            comments = retrievedComments
         } else {
-            setState { comments = emptyList() }
+            comments = emptyList()
         }
     }
 
-    private fun saveComment(comment: Comment) {
+    useEffect(emptyList<String>()) {
+        scope.launch {
+            updateWorkItems()
+            updateComments()
+        }
+    }
+
+    fun saveComment(comment: Comment) {
         val job = scope.launch {
-            if (state.comments.any { it.date.equals(comment.date) }) {
+            if (comments.any { it.date.equals(comment.date) }) {
                 JsApi.updateComment(comment)
             } else {
                 JsApi.addComment(comment)
@@ -84,97 +107,108 @@ class Home(props: HomeProps) : RComponent<HomeProps, HomeState>(props) {
         }
     }
 
-    override fun RBuilder.render() {
-        section(classes = "pt-md-5 pb-md-4 text-center") {
-            div(classes = "container align-items-center") {
-                div(classes = "row") {
-                    weekPicker {
-                        value = state.yearWeek
-                        onUpdateValue = { newYearWeek ->
-                            setState {
-                                yearWeek = newYearWeek
-                            }
-                            scope.launch {
-                                updateWorkItems()
-                                updateComments()
-                            }
-                        }
-                    }
-                }
+    Container {
+        sx {
+            padding = 20.px
+            maxWidth = 80.pct
+        }
 
-                val projectsInWeek = state.work.map { it.project }.distinct()
-                div(classes = "row") {
-                    table(classes = "table table-hover") {
-                        setProp("id", "weekTable")
-                        setProp("data-show-columns", "true")
-                        thead {
-                            tr {
-                                th { +"Date" }
-                                th {
-                                    +"Comment"
-                                }
-                                th { +"Total Time" }
-                                projectsInWeek.map {
-                                    th { +it }
-                                }
-                            }
-                        }
-                        tbody {
-                            state.work.groupBy { it.time.date }.map { dateToWorkList ->
-                                val work = dateToWorkList.value
-                                val totalWork = work.sumOf { it.time.getTotalDuration() }
-                                val fixedList = listOf(
-                                    dateToWorkList.key.display(),
-                                    state.comments.find { it.date.equals(dateToWorkList.key) }?.comment ?: "",
-                                    "$totalWork / ${totalWork.asDouble().asDynamic().toFixed(2)}"
-                                )
-                                val projectTimeList = projectsInWeek.map { project ->
-                                    work.filter { it.project == project }.sumOf { it.time.getTotalDuration() }
-                                }
-                                dateToWorkList.key to fixedList + projectTimeList
-                            }.sortedBy { it.first }.map {
-                                tr {
-                                    it.second.mapIndexed { idx, data ->
-                                        val date = it.first
-                                        if (idx == 1) {
-                                            textEdit {
-                                                id = date.dayOfWeek.toString()
-                                                text = state.comments.find { it.date.equals(date) }?.comment ?: ""
-                                                onSave = { s -> saveComment(Comment(date, s)) }
-                                            }
-                                            td {
-                                                +data.toString()
-                                                attrs {
-                                                    onClickFunction = { _ ->
-                                                        document.getElementById(date.dayOfWeek.toString())?.let {
-                                                            showModal(it)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            td { +data.toString() }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                timeSum {
-                    work = state.work
+        weekPicker {
+            value = yearWeek
+            onUpdateValue = { newYearWeek ->
+                yearWeek = newYearWeek
+                scope.launch {
+                    updateWorkItems(newYearWeek)
+                    updateComments(newYearWeek)
                 }
             }
+        }
+
+        val projectsInWeek: List<String> = workList.map { it.project }.distinct()
+        TableContainer {
+            sx { width = 100.pct }
+            Table {
+                stickyHeader
+                timesTableHeader {
+                    projectList = projectsInWeek
+                }
+                TableBody {
+                    workList
+                        .groupBy { it.time.date }
+                        .map { getRow(it, comments, projectsInWeek) }
+                        .sortedBy { it.first }.map {
+                            tableRow {
+                                date = it.first
+                                row = it.second
+                                listOfComments = comments
+                                saveCommentFunction = { saveComment(it) }
+                            }
+                        }
+                }
+                timesTableFooter {
+                    projectList = projectsInWeek
+                    projectToTimeMap = workList
+                        .groupBy { it.project }
+                        .mapValues { it.value.sumOf { it.time.getTotalDuration() } }
+                }
+            }
+        }
+        timeSum {
+            workItemList = workList
         }
     }
 }
 
-fun showModal(@Suppress("UNUSED_PARAMETER") e: Element) {
-    js("new bootstrap.Modal(e).show()")
+private fun <T> Iterable<T>.sumOf(selector: (T) -> Time): Time =
+    this.fold(Time(0, 0)) { acc, t -> acc + selector(t) }
+
+fun getRow(
+    dateToWorkList: Map.Entry<LocalDate, List<Work>>,
+    comments: List<Comment>,
+    projectsInWeek: List<String>
+): Pair<LocalDate, List<Any>> {
+    val work: List<Work> = dateToWorkList.value
+    val totalWork = work.sumOf { it.time.getTotalDuration() }
+    val fixedList = listOf(
+        dateToWorkList.key.display(),
+        comments.find { it.date.equals(dateToWorkList.key) }?.comment ?: "",
+        "$totalWork / ${totalWork.asDouble().asDynamic().toFixed(2)}"
+    )
+    val projectTimeList = projectsInWeek.map { project ->
+        work.filter { it.project == project }.sumOf { it.time.getTotalDuration() }
+    }
+    return dateToWorkList.key to fixedList + projectTimeList
 }
 
-fun RBuilder.home(handler: HomeProps.() -> Unit): ReactElement {
-    return child(Home::class) {
-        this.attrs(handler)
+external interface TableRowProperties : Props {
+    var date: LocalDate
+    var row: List<Any>
+    var listOfComments: List<Comment>
+    var saveCommentFunction: (Comment) -> Unit
+}
+
+val tableRow = FC<TableRowProperties> { props ->
+    var dialogOpen: Boolean by useState(false)
+    TableRow {
+        hover = true
+        props.row.mapIndexed { idx, data ->
+            if (idx == 1) {
+                textEdit {
+                    text = props.listOfComments.find { it.date.equals(props.date) }?.comment ?: ""
+                    onSave = { s ->
+                        props.saveCommentFunction(Comment(props.date, s))
+                        dialogOpen = false
+                    }
+                    onClose = { dialogOpen = false }
+                    isOpen = dialogOpen
+                }
+                TableCell {
+                    +data.toString()
+                    onClick = { dialogOpen = true }
+                }
+            } else {
+                TableCell { +data.toString() }
+            }
+        }
     }
 }

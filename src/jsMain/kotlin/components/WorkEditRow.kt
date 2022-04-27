@@ -1,191 +1,198 @@
 package components
 
+import csstype.AlignItems
 import de.simles.timetracker.display
 import de.simles.timetracker.firstWorkDayOfWeek
 import de.simles.timetracker.lastWorkDayOfWeek
-import de.simles.timetracker.models.AbsoluteUnit
-import de.simles.timetracker.models.IntervalUnit
-import de.simles.timetracker.models.Work
-import de.simles.timetracker.models.toTime
-import kotlinx.datetime.*
-import kotlinx.html.InputType
-import kotlinx.html.js.onChangeFunction
-import kotlinx.html.js.onClickFunction
-import org.w3c.dom.HTMLInputElement
-import org.w3c.dom.HTMLSelectElement
-import react.*
-import react.dom.*
+import de.simles.timetracker.models.*
+import kotlinx.datetime.toLocalDate
+import kotlinx.js.jso
+import mui.icons.material.AlarmOff
+import mui.material.*
+import react.FC
+import react.Props
+import react.ReactNode
+import react.dom.html.InputType
+import react.dom.onChange
+import react.key
 
-val workRowHeader = functionalComponent<RProps> { _ ->
-    div(classes = "list-group-item list-group-item-action") {
-        div(classes = "row") {
-            div(classes = "col") { b { +"Date" } }
-            div(classes = "col") { b { +"Project" } }
-            div(classes = "col") { b { +"Duration" } }
-            div(classes = "col") { b { +"Start" } }
-            div(classes = "col") { b { +"End" } }
-            div(classes = "col") { b { +"Break" } }
+val workRowHeader = FC<Props> {
+    TableHead {
+        TableRow {
+            TableCell { +"Date" }
+            TableCell { +"Project" }
+            TableCell { +"Duration" }
+            TableCell { +"Start" }
+            TableCell { +"End" }
+            TableCell { +"Break" }
         }
     }
 }
 
-external interface WorkRowProps : RProps {
-    var work: Work
+external interface WorkRowProps : Props {
+    var workItem: Work
     var active: Boolean
     var reportActive: (Work) -> Unit
     var projectList: List<String>?
+    var saveActiveWork: () -> Unit
 }
 
-val workEditRow = functionalComponent<WorkRowProps> { props ->
-    div(classes = "list-group-item list-group-item-action" + (if (props.active) " active" else "")) {
-        attrs {
-            onClickFunction = { _ -> props.reportActive(props.work) }
+fun toStringOnlyOnIntervalTimeUnit(time: TimeUnit, propertyGetter: (IntervalUnit) -> Time?) = when (time) {
+    is AbsoluteUnit -> ""
+    is IntervalUnit -> "${propertyGetter(time)}"
+}
+
+external interface MinMax : InputBaseComponentProps {
+    var min: String
+    var max: String
+}
+
+fun minMax(minValue: String, maxValue: String): MinMax = jso {
+    min = minValue
+    max = maxValue
+}
+
+val workEditRow = FC<WorkRowProps> { props ->
+    if (!props.active) {
+        TableRow {
+            hover = true
+            onClick = { _ -> props.reportActive(props.workItem) }
+            TableCell { +props.workItem.time.date.display() }
+            TableCell { +props.workItem.project }
+            TableCell { +"${props.workItem.time.getTotalDuration()}" }
+            TableCell {
+                +toStringOnlyOnIntervalTimeUnit(props.workItem.time) { it.start }
+            }
+            TableCell {
+                +toStringOnlyOnIntervalTimeUnit(props.workItem.time) { it.end }
+            }
+            TableCell {
+                +toStringOnlyOnIntervalTimeUnit(props.workItem.time) { it.pause }
+            }
         }
-        div(classes = "row") {
-            div(classes = "col") {
-                if (props.active) {
-                    input(classes = "form-control") {
-                        attrs {
-                            type = InputType.date
-                            max = props.work.time.date.lastWorkDayOfWeek().toString()
-                            min = props.work.time.date.firstWorkDayOfWeek().toString()
-                            defaultValue = props.work.time.date.toString()
-                            onChangeFunction = { e ->
-                                val newUpdatedWork =
-                                    props.work.withDate((e.target as HTMLInputElement).value.toLocalDate())
-                                props.reportActive(newUpdatedWork)
-                            }
-                        }
-                    }
-                } else {
-                    +props.work.time.date.display()
-                }
-            }
-            div(classes = "col") {
-                if (props.active) {
-                    select(classes = "form-select") {
-                        props.projectList?.map {
-                            option(classes = if (it == props.work.project) "active" else "") {
-                                +it
-                                attrs {
-                                    value = it
-                                }
-                            }
-                        }
-                        attrs {
-                            onChangeFunction = { e ->
-                                val selected = (e.target as HTMLSelectElement).value
-                                console.log("Clicked $selected")
-                                val newUpdatedWork = props.work.withProject(selected)
-                                props.reportActive(newUpdatedWork)
-                            }
-                        }
-                    }
-                } else {
-                    +props.work.project
-                }
-            }
-            div(classes = "col") {
-                if (props.active) {
-                    input(classes = "form-control") {
-                        attrs {
-                            when (props.work.time) {
-                                is AbsoluteUnit -> {
-                                    defaultValue = (props.work.time as AbsoluteUnit).duration.toString()
-                                    onChangeFunction = { e ->
-                                        val newUpdatedWork =
-                                            props.work.withTime((props.work.time as AbsoluteUnit).withDuration((e.target as HTMLInputElement).value.toTime()))
-                                        props.reportActive(newUpdatedWork)
-                                    }
-                                }
-                                is IntervalUnit -> value = props.work.time.getTotalDuration().toString()
-                            }
-                        }
-                    }
-                } else {
-                    +"${props.work.time.getTotalDuration()}"
-                }
-            }
-            div(classes = "col") {
-                if (props.active) {
-                    input(classes = "form-control") {
-                        attrs {
-                            when (props.work.time) {
-                                is AbsoluteUnit -> value = ""
-                                is IntervalUnit -> {
-                                    defaultValue = (props.work.time as IntervalUnit).start.toString()
-                                    onChangeFunction = { e ->
-                                        val newUpdatedWork =
-                                            props.work.withTime((props.work.time as IntervalUnit).withStart((e.target as HTMLInputElement).value.toTime()))
-                                        props.reportActive(newUpdatedWork)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    when (props.work.time) {
-                        is AbsoluteUnit -> +""
-                        is IntervalUnit -> +"${(props.work.time as IntervalUnit).start}"
-                    }
-                }
-            }
-            div(classes = "col") {
-                if (props.active) {
-                    input(classes = "form-control") {
-                        attrs {
-                            when (props.work.time) {
-                                is AbsoluteUnit -> value = ""
-                                is IntervalUnit -> {
-                                    defaultValue = (props.work.time as IntervalUnit).end.toString()
-                                    onChangeFunction = { e ->
-                                        val newUpdatedWork =
-                                            props.work.withTime((props.work.time as IntervalUnit).withEnd((e.target as HTMLInputElement).value.toTime()))
-                                        props.reportActive(newUpdatedWork)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    when (props.work.time) {
-                        is AbsoluteUnit -> +""
-                        is IntervalUnit -> +"${(props.work.time as IntervalUnit).end}"
-                    }
-                }
-            }
-            div(classes = "col") {
-                if (props.active) {
-                    input(classes = "form-control") {
-                        attrs {
-                            when (props.work.time) {
-                                is AbsoluteUnit -> value = ""
-                                is IntervalUnit -> {
-                                    defaultValue = (props.work.time as IntervalUnit).pause.toString()
-                                    onChangeFunction = { e ->
-                                        val newUpdatedWork =
-                                            props.work.withTime((props.work.time as IntervalUnit).withPause((e.target as HTMLInputElement).value.toTime()))
-                                        props.reportActive(newUpdatedWork)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    when (props.work.time) {
-                        is AbsoluteUnit -> +""
-                        is IntervalUnit -> +"${(props.work.time as IntervalUnit).pause}"
-                    }
-                }
-            }
+    } else {
+        rowEditor {
+            projectList = props.projectList
+            workItem = props.workItem
+            reportActive = props.reportActive
+            active = props.active
         }
     }
 }
 
-fun RBuilder.workEditRowHeader(handler: RProps.() -> Unit) = child(workRowHeader) {
-    attrs { handler() }
+val rowEditor = FC<WorkRowProps> { props ->
+    TableRow {
+        selected = true
+        TableCell {
+            TextField {
+                variant = FormControlVariant.standard
+                label = ReactNode("date")
+                type = InputType.date
+                value = props.workItem.time.date.toString()
+                onChange = { e ->
+                    val newUpdatedWork =
+                        props.workItem.withDate(e.target.asDynamic().value.toString().toLocalDate())
+                    props.reportActive(newUpdatedWork)
+                }
+                inputProps = minMax(
+                    props.workItem.time.date.firstWorkDayOfWeek().toString(),
+                    props.workItem.time.date.lastWorkDayOfWeek().toString()
+                )
+            }
+        }
+        TableCell {
+            TextField {
+                variant = FormControlVariant.standard
+                label = ReactNode("project")
+                onChange = { e ->
+                    val newUpdatedWork = props.workItem.withProject(e.target.asDynamic().value)
+                    props.reportActive(newUpdatedWork)
+                }
+                select = true
+                value = props.workItem.project
+                props.projectList?.map {
+                    MenuItem {
+                        key = it
+                        value = it
+                        +it
+                    }
+                }
+            }
+        }
+        TableCell {
+            if (props.workItem.time is AbsoluteUnit) {
+                TextField {
+                    variant = FormControlVariant.standard
+                    value = (props.workItem.time as AbsoluteUnit).duration.toString()
+                    onChange = { e ->
+                        val newUpdatedWork =
+                            props.workItem.withTime(
+                                (props.workItem.time as AbsoluteUnit).withDuration(
+                                    e.target.asDynamic().value.toString().toTime() ?: Time(0, 0)
+                                )
+                            )
+                        props.reportActive(newUpdatedWork)
+                    }
+                }
+            } else {
+                +props.workItem.time.getTotalDuration().toString()
+            }
+        }
+        fun getIntervalUnitTextField(type: IntervalFieldType) = TableCell {
+            sx = jso {
+                alignItems = AlignItems.baseline
+            }
+            TextField {
+                variant = FormControlVariant.standard
+                label = ReactNode(type.toString().lowercase())
+                value = type.get(props.workItem.time as IntervalUnit).toString()
+                onChange = { e ->
+                    val newUpdatedWork =
+                        props.workItem.withTime(
+                            type.set(
+                                props.workItem.time as IntervalUnit,
+                                e.target.asDynamic().value.toString().toTime()
+                            )
+                        )
+                    props.reportActive(newUpdatedWork)
+                }
+            }
+            if (type == IntervalFieldType.END && type.get(props.workItem.time as IntervalUnit) == null) {
+                IconButton {
+                    size = Size.small
+                    AlarmOff {
+                        fontSize = SvgIconSize.small
+                    }
+                    onClick = {
+                        props.reportActive(
+                            props.workItem.withTime(
+                                (props.workItem.time as IntervalUnit).withEnd(Time.now())
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        if (props.workItem.time is IntervalUnit) {
+            getIntervalUnitTextField(IntervalFieldType.START)
+        } else {
+            TableCell { +"" }
+        }
+        if (props.workItem.time is IntervalUnit) {
+            getIntervalUnitTextField(IntervalFieldType.END)
+        } else {
+            TableCell { +"" }
+        }
+        if (props.workItem.time is IntervalUnit) {
+            getIntervalUnitTextField(IntervalFieldType.PAUSE)
+        } else {
+            TableCell { +"" }
+        }
+    }
 }
 
-fun RBuilder.workEditRow(handler: WorkRowProps.() -> Unit) = child(workEditRow) {
-    attrs { handler() }
+enum class IntervalFieldType(val get: (IntervalUnit) -> Time?, val set: (IntervalUnit, Time?) -> IntervalUnit) {
+    START({ it.start }, { intervalUnit, time -> intervalUnit.withStart(time ?: Time.now()) }),
+    END({ it.end }, { intervalUnit, time -> intervalUnit.withEnd(time) }),
+    PAUSE({ it.pause }, { intervalUnit, time -> intervalUnit.withPause(time) })
 }

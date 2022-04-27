@@ -2,69 +2,50 @@ import components.*
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.MainScope
-import kotlinx.html.role
-import pages.home
-import pages.monthlyReport
-import pages.projects
-import pages.worklist
-import react.*
-import react.dom.attrs
-import react.dom.header
-import react.dom.main
+import pages.Home
+import pages.MonthlyReport
+import pages.Projects
+import pages.WorkList
+import react.FC
+import react.Props
+import react.create
+import react.dom.html.ReactHTML.header
+import react.dom.html.ReactHTML.main
 import react.dom.render
-
-external interface IndexState : RState {
-    var page: String
-}
+import react.useState
 
 val scope = MainScope()
 
-class Index : RComponent<RProps, IndexState>() {
-    init {
-        state.apply {
-            page = MENU_ITEM_HOME
+val Index = FC<Props> {
+    var page by useState(MENU_ITEM_HOME)
+
+    header {
+        menu {
+            selected = page
+            onMenuChange = { newPage -> page = newPage }
         }
     }
-
-    override fun RBuilder.render() {
-        header {
-            menu {
-                selected = state.page
-                onMenuChange = { newPage ->
-                    setState {
-                        page = newPage
-                    }
-                }
+    main {
+        when (page) {
+            MENU_ITEM_HOME -> {
+                Home { }
             }
-        }
-        main(classes = "flex-shrink-0") {
-            attrs {
-                role = "main"
+            MENU_ITEM_PROJECTS -> {
+                Projects { }
             }
-            when (state.page) {
-                MENU_ITEM_HOME -> {
-                    home { }
-                }
-                MENU_ITEM_PROJECTS -> {
-                    projects { }
-                }
-                MENU_ITEM_WORK_LIST -> {
-                    worklist { }
-                }
-                MENU_ITEM_MONTHLY_REPORT -> {
-                    monthlyReport {  }
-                }
+            MENU_ITEM_WORK_LIST -> {
+                WorkList { }
             }
+            MENU_ITEM_MONTHLY_REPORT -> {
+                MonthlyReport { }
+            }
+            else -> {}
         }
     }
 }
 
 fun main() {
     window.onload = {
-        render(document.getElementById("root")) {
-            child(Index::class) {
-
-            }
-        }
+        render(Index.create(), document.getElementById("root") ?: error("No root"))
     }
 }
